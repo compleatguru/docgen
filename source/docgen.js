@@ -1,9 +1,10 @@
 
 var rsvp = require('rsvp');
-var fs = require('fs-extra');
+var fs = require('graceful-fs');
+var copydir = require('copy-dir');
 var path = require('path');
 var cheerio = require('cheerio');
-var markdown = require('markdown-it')('commonmark').enable('table');;
+var markdown = require('markdown-it')('commonmark').enable('table');
 var moment = require('moment');
 var childProcess = require("child_process");
 var schemaValidator = require("z-schema");
@@ -15,7 +16,7 @@ var imageSizeOf = require('image-size');
 //Allow CommonMark links that use other protocols, such as file:///
 //The markdown-it implementation is more restrictive than the CommonMark spec
 //See https://github.com/markdown-it/markdown-it/issues/108
-markdown.validateLink = function () { return true; } 
+markdown.validateLink = function () { return true; }
 
 /**
 * DocGen class
@@ -109,7 +110,7 @@ function DocGen (process)
 
     var copyDirSync = function (source, destination) {
         try {
-            fs.copySync(source, destination);
+          copydir.sync(source, destination);
         } catch (error) {
             console.log(chalk.red('Error copying directory: '+source+' to '+destination));
             if (options.verbose === true) {
@@ -125,8 +126,8 @@ function DocGen (process)
 
     var remakeDirSync = function (path) {
         try {
-            fs.removeSync(path);
-            fs.mkdirpSync(path);
+            removeDirSync(path);
+            fs.mkdirSync(path, { recursive: true });
         } catch (error) {
             console.log(chalk.red('Error recreating directory: '+path));
             if (options.verbose === true) {
@@ -142,7 +143,7 @@ function DocGen (process)
 
     var removeDirSync = function (path) {
         try {
-            fs.removeSync(path);
+          fs.rmdirSync(path, { recursive: true });
         } catch (error) {
             console.log(chalk.red('Error removing directory: '+path));
             if (options.verbose === true) {
@@ -239,7 +240,7 @@ function DocGen (process)
                 },
                 contributors: {
                     type : "array",
-                    items: { oneOf: [ { 
+                    items: { oneOf: [ {
                         type: "object",
                         required: [ "name", "url"],
                         properties: {
@@ -274,7 +275,7 @@ function DocGen (process)
         "contents" : {
             title: "DocGen Table of Contents Schema",
             type : "array",
-            items: { oneOf: [ { 
+            items: { oneOf: [ {
                 type: "object",
                 required: [ "heading", "column", "pages"],
                 properties: {
@@ -282,7 +283,7 @@ function DocGen (process)
                     column: { type: "integer", minimum: 1, maximum: 4 },
                     pages: {
                         type : "array",
-                        items: { oneOf: [ { 
+                        items: { oneOf: [ {
                             type: "object",
                             required: [ "title", "source"],
                             properties: {
@@ -340,8 +341,8 @@ function DocGen (process)
                 }
             }
             //add the release notes to the contents list
-            var extra = { 
-                heading: 'Extra', 
+            var extra = {
+                heading: 'Extra',
                 column: 5,
                 pages: [
                     { title: 'Release notes', source: 'release-notes.txt' }
@@ -393,7 +394,7 @@ function DocGen (process)
                     mainProcess.exit(1);
                 }
             });
-            process(); 
+            process();
         }).catch(function(error) {
             console.log(chalk.red('Error loading source files'));
             if (options.verbose === true) {
@@ -561,9 +562,9 @@ function DocGen (process)
                     $('#dg-logo').css('background-image', 'url(' + logoUrl + ')');
                     $('#dg-logo').css('height', logoHeight+'px');
                     $('#dg-logo').css('line-height', logoHeight+'px');
-                    $('#dg-logo').css('padding-left', (logoWidth+25)+'px'); 
+                    $('#dg-logo').css('padding-left', (logoWidth+25)+'px');
                 } else {
-                    $('#dg-logo').css('padding-left', '0'); 
+                    $('#dg-logo').css('padding-left', '0');
                 }
                 //parameters
                 $('title').text(meta.parameters.title);
@@ -571,7 +572,7 @@ function DocGen (process)
                 $('#dg-title').text(meta.parameters.title);
                 $('#dg-owner').html(owner);
                 $('#dg-version').text(releaseVersion);
-                $('#dg-web-title-version').text('('+releaseVersion+')');  
+                $('#dg-web-title-version').text('('+releaseVersion+')');
                 $('#dg-release-date').text(releaseDate);
                 $('#dg-web-footer').text(webFooter);
                 $('#dg-author').html(author);
@@ -684,7 +685,7 @@ function DocGen (process)
         promises['ownership'] = writeFile(options.output+'ownership.html', templates.webCover.html());
         if (options.pdf === true) {
             var pdfTempDir = options.output+'temp/';
-            fs.mkdirsSync(pdfTempDir);
+            fs.mkdirSync(pdfTempDir, { recursive: true });
             promises['docgenPdfCover'] = writeFile(pdfTempDir+'pdfCover.html', templates.pdfCover.html());
             promises['docgenPdfHeader'] = writeFile(pdfTempDir+'pdfHeader.html', templates.pdfHeader.html());
             promises['docgenPdfFooter'] = writeFile(pdfTempDir+'pdfFooter.html', templates.pdfFooter.html());
@@ -753,7 +754,7 @@ function DocGen (process)
 
     var checkPdfVersion = function () {
         if (options.pdf === true) {
-            //first check that wkhtmltopdf is installed           
+            //first check that wkhtmltopdf is installed
             childProcess.exec(options.wkhtmltopdfPath+' -V', function (error, stdout, stderr) {
                 if (error) {
                     console.log(chalk.red('Unable to call wkhtmltopdf. Is it installed and in path? See http://wkhtmltopdf.org'));
@@ -814,7 +815,7 @@ function DocGen (process)
         wkhtmltopdf.stderr.on('data', function (data) {
             //do nothing
         });
-             
+
         wkhtmltopdf.on('close', function (code) {
             if (options.verbose !== true) {
                 spinner.stop();
